@@ -22,7 +22,7 @@ RUN wget https://downloads.percona.com/downloads/percona-toolkit/3.5.5/binary/de
 RUN wget https://golang.org/dl/go1.21.4.linux-amd64.tar.gz && \
     tar -C /usr/local -xzf go1.21.4.linux-amd64.tar.gz && \
     export PATH=$PATH:/usr/local/go/bin && \
-    echo "export PATH=$PATH:/usr/local/go/bin" >> ~/.bashrc
+    echo "export PATH=$PATH:/usr/local/go/bin" >> ~/.bash_profile
 
 # Install alp
 RUN wget https://github.com/tkuchiki/alp/releases/download/v1.0.21/alp_linux_amd64.zip && \
