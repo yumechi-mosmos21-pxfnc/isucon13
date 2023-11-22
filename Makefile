@@ -7,7 +7,7 @@ NGINX_CONFIG_DEST := /etc/nginx/nginx.conf
 NGINX_SERVICE_NAME := nginx
 
 REDIS_CONFIG_SRC := ./server_setting/redis/redis.conf
-REDIS_CONFIG_DEST := /path/to/redis.conf
+REDIS_CONFIG_DEST := /etc/redis/redis.conf
 REDIS_SERVICE_NAME := redis-server
 
 WEBAPP_PROJECT_DIR := /home/isucon/webapp/rust # webappのディレクトリ名
