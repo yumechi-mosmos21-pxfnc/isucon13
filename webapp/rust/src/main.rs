@@ -1971,41 +1971,66 @@ async fn get_user_statistics_handler(
         .await?
         .ok_or(Error::BadRequest("".into()))?;
 
-    // ランク算出
     let users: Vec<UserModel> = sqlx::query_as("SELECT * FROM users")
         .fetch_all(&mut *tx)
         .await?;
 
-    let mut ranking = Vec::new();
-    for user in users {
-        let query = r#"
-        SELECT COUNT(*) FROM users u
-        INNER JOIN livestreams l ON l.user_id = u.id
-        INNER JOIN reactions r ON r.livestream_id = l.id
-        WHERE u.id = ?
-        "#;
-        let MysqlDecimal(reactions) = sqlx::query_scalar(query)
-            .bind(user.id)
-            .fetch_one(&mut *tx)
-            .await?;
-
-        let query = r#"
-        SELECT IFNULL(SUM(l2.tip), 0) FROM users u
-        INNER JOIN livestreams l ON l.user_id = u.id
-        INNER JOIN livecomments l2 ON l2.livestream_id = l.id
-        WHERE u.id = ?
-        "#;
-        let MysqlDecimal(tips) = sqlx::query_scalar(query)
-            .bind(user.id)
-            .fetch_one(&mut *tx)
-            .await?;
-
-        let score = reactions + tips;
-        ranking.push(UserRankingEntry {
-            username: user.name,
-            score,
-        });
+    #[derive(Debug, sqlx::FromRow)]
+    struct ReactionsCount {
+        name: String,
+        reactions: MysqlDecimal,
     }
+    #[derive(Debug, sqlx::FromRow)]
+    struct TipsCount {
+        name: String,
+        tips: MysqlDecimal
+    }
+
+    let query = r#"
+    SELECT u.name, COUNT(*) as reactions FROM users u
+    INNER JOIN livestreams l ON l.user_id = u.id
+    INNER JOIN reactions r ON r.livestream_id = l.id
+    GROUP BY u.name
+    "#;
+    let reactions_counts: Vec<ReactionsCount> = sqlx::query_as(query).fetch_all(&mut *tx).await?;
+    let reactions_count_map = reactions_counts
+        .into_iter()
+        .map(|entry| (entry.name, entry.reactions))
+        .collect::<HashMap<_, _>>();
+
+    let query =r#"
+    SELECT u.name, IFNULL(SUM(l2.tip), 0) as tips FROM users u
+    INNER JOIN livestreams l ON l.user_id = u.id
+    INNER JOIN livecomments l2 ON l2.livestream_id = l.id
+    GROUP BY u.name
+    "#;
+    let tips_counts: Vec<TipsCount> = sqlx::query_as(query).fetch_all(&mut *tx).await?;
+    let tips_count_map = tips_counts
+        .into_iter()
+        .map(|entry| (entry.name, entry.tips))
+        .collect::<HashMap<_, _>>();
+
+    let mut ranking = users
+        .into_iter()
+        .map(|user| {
+            let reactions = if let Some(MysqlDecimal(reactions)) = reactions_count_map.get(&user.name) {
+                reactions.clone()
+            } else {
+                0
+            };
+            let tips = if let Some(MysqlDecimal(tips)) = tips_count_map.get(&user.name) {
+                tips.clone()
+            } else {
+                0
+            };
+            let score = reactions + tips;
+            UserRankingEntry {
+                username: user.name,
+                score,
+            }
+        })
+        .collect::<Vec<_>>();
+
     ranking.sort_by(|a, b| {
         a.score
             .cmp(&b.score)
