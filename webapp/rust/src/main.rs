@@ -844,11 +844,13 @@ async fn fill_livestreams_response(
     let livestream_tag_models: Vec<LivestreamTagModel> = query_builder.build_query_as()
             .fetch_all(&mut *tx)
             .await?;
+    println!("livestream_tag_models: {:?}", livestream_tag_models);
 
     let livestream_tag_ids = livestream_tag_models
         .iter()
         .map(|livestream_tag_model| livestream_tag_model.tag_id)
         .collect::<HashSet<i64>>();
+    println!("livestream_tag_ids: {:?}", livestream_tag_ids);
     let mut query_builder = sqlx::query_builder::QueryBuilder::new(
         "SELECT tags.id, livestream_tags.livestream_id, tags.name FROM tags INNER JOIN livestream_tags on tags.id = livestream_tags.tag_id WHERE tags.id IN ("
     );
