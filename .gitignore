@@ -483,7 +483,8 @@ fabric.properties
 .wget-hsts
 .x
 env.sh
-.bashrc
+/.bashrc
+.mysql_history
 
 /webapp/go
 /webapp/img
