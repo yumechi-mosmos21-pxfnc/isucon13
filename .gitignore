@@ -489,7 +489,6 @@ env.sh
 .gitconfig
 
 /webapp/go
-/webapp/img
 /webapp/node
 /webapp/perl
 /webapp/php
