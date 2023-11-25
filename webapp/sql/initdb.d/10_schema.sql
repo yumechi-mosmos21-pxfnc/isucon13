@@ -101,7 +101,8 @@ CREATE TABLE `ng_words` (
   `livestream_id` BIGINT NOT NULL,
   `word` VARCHAR(255) NOT NULL,
   `created_at` BIGINT NOT NULL,
-  KEY `ng_words_stream_idx` (`livestream_id`)
+  KEY `ng_words_stream_idx` (`livestream_id`),
+  KEY `ng_words_user_idx` (`user_id`)
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
 CREATE INDEX ng_words_word ON ng_words(`word`);
 
@@ -113,5 +114,6 @@ CREATE TABLE `reactions` (
   -- :innocent:, :tada:, etc...
   `emoji_name` VARCHAR(255) NOT NULL,
   `created_at` BIGINT NOT NULL,
-  KEY `reactions_stream_idx` (`livestream_id`)
+  KEY `reactions_stream_idx` (`livestream_id`),
+  KEY `reactions_user_idx` (`user_id`)
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
