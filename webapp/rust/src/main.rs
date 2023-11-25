@@ -812,12 +812,10 @@ async fn fill_livestreams_response(
     icondb: IconDB,
     livestream_models: Vec<LivestreamModel>,
 ) -> sqlx::Result<Vec<Livestream>> {
-    println!("livestream_models: {:?}", livestream_models);
     let user_ids = livestream_models
         .iter()
         .map(|livestream_model| livestream_model.user_id)
         .collect::<HashSet<i64>>();
-    println!("user_ids: {:?}", user_ids);
     let mut query_builder =
         sqlx::query_builder::QueryBuilder::new("SELECT * FROM users WHERE id IN (");
     let mut separated = query_builder.separated(", ");
@@ -831,7 +829,6 @@ async fn fill_livestreams_response(
         .into_iter()
         .map(|owner| (owner.id, owner))
         .collect::<HashMap<_, _>>();
-    println!("owner_models_map: {:?}", owner_models_map.len());
 
     // ========================================
 
@@ -839,7 +836,6 @@ async fn fill_livestreams_response(
         .iter()
         .map(|livestream_model| livestream_model.id)
         .collect::<HashSet<i64>>();
-    println!("livestream_model_ids: {:?}", livestream_model_ids);
 
     let mut query_builder = sqlx::query_builder::QueryBuilder::new(
         "SELECT livestream_tags.livestream_id, tags.id, tags.name FROM tags INNER JOIN livestream_tags on tags.id = livestream_tags.tag_id WHERE livestream_tags.livestream_id IN (",
