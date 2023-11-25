@@ -8,7 +8,6 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-
 use uuid::Uuid;
 
 const DEFAULT_SESSION_ID_KEY: &str = "SESSIONID";
@@ -80,6 +79,8 @@ struct AppState {
     powerdns_subdomain_address: Arc<String>,
     // <ユーザid, 画像>
     icondb: IconDB,
+    reactions_count: Arc<RwLock<HashMap<String, i64>>>,
+    tips_count: Arc<RwLock<HashMap<String, i64>>>,
 }
 
 impl axum::extract::FromRef<AppState> for axum_extra::extract::cookie::Key {
@@ -121,7 +122,9 @@ fn build_mysql_options() -> sqlx::mysql::MySqlConnectOptions {
     options
 }
 
-async fn initialize_handler() -> Result<axum::Json<InitializeResponse>, Error> {
+async fn initialize_handler(
+    State(AppState { pool, reactions_count, tips_count, .. }): State<AppState>,
+) -> Result<axum::Json<InitializeResponse>, Error> {
     let output = tokio::process::Command::new("../sql/init.sh")
         .output()
         .await?;
@@ -132,6 +135,47 @@ async fn initialize_handler() -> Result<axum::Json<InitializeResponse>, Error> {
             String::from_utf8_lossy(&output.stderr),
         )));
     }
+
+    let mut tx = pool.begin().await?;
+
+    #[derive(Debug, sqlx::FromRow)]
+    struct ReactionsCount {
+        name: String,
+        reactions: MysqlDecimal,
+    }
+    #[derive(Debug, sqlx::FromRow)]
+    struct TipsCount {
+        name: String,
+        tips: MysqlDecimal
+    }
+
+    let query = r#"
+    SELECT u.name, COUNT(*) as reactions FROM users u
+    INNER JOIN livestreams l ON l.user_id = u.id
+    INNER JOIN reactions r ON r.livestream_id = l.id
+    GROUP BY u.name
+    "#;
+    let mut reactions_count = reactions_count.write().await;
+    let reactions_counts: Vec<ReactionsCount> = sqlx::query_as(query).fetch_all(&mut *tx).await?;
+    for c in reactions_counts {
+        let MysqlDecimal(reactions) = c.reactions;
+        reactions_count.insert(c.name, reactions);
+    }
+
+    let query =r#"
+    SELECT u.name, IFNULL(SUM(l2.tip), 0) as tips FROM users u
+    INNER JOIN livestreams l ON l.user_id = u.id
+    INNER JOIN livecomments l2 ON l2.livestream_id = l.id
+    GROUP BY u.name
+    "#;
+    let mut tips_count = tips_count.write().await;
+    let tips_counts: Vec<TipsCount> = sqlx::query_as(query).fetch_all(&mut *tx).await?;
+    for c in tips_counts {
+        let MysqlDecimal(tips) = c.tips;
+        tips_count.insert(c.name, tips);
+    }
+
+    tx.commit().await?;
 
     Ok(axum::Json(InitializeResponse { language: "rust" }))
 }
@@ -264,6 +308,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             key: axum_extra::extract::cookie::Key::derive_from(&secret),
             powerdns_subdomain_address: Arc::new(powerdns_subdomain_address),
             icondb: Arc::new(RwLock::new(HashMap::new())),
+            reactions_count: Arc::new(RwLock::new(HashMap::new())),
+            tips_count: Arc::new(RwLock::new(HashMap::new())),
         })
         .layer(tower_http::trace::TraceLayer::new_for_http());
 
@@ -1025,7 +1071,7 @@ async fn get_ngwords(
 }
 
 async fn post_livecomment_handler(
-    State(AppState { pool, icondb, .. }): State<AppState>,
+    State(AppState { pool, icondb, tips_count, .. }): State<AppState>,
     jar: SignedCookieJar,
     Path((livestream_id,)): Path<(i64,)>,
     axum::Json(req): axum::Json<PostLivecommentRequest>,
@@ -1090,6 +1136,14 @@ async fn post_livecomment_handler(
         .execute(&mut *tx)
         .await?;
     let livecomment_id = rs.last_insert_id() as i64;
+
+    let livestream_user_name = sqlx::query_scalar("SELECT name FROM users WHERE id = ?")
+        .bind(livestream_model.user_id)
+        .fetch_one(&mut *tx)
+        .await?;
+    let mut tips_count = tips_count.write().await;
+    let tips_count = tips_count.entry(livestream_user_name).or_insert(0);
+    *tips_count += req.tip;
 
     let livecomment = fill_livecomment_response(
         &mut tx,
@@ -1377,7 +1431,7 @@ async fn get_reactions_handler(
 }
 
 async fn post_reaction_handler(
-    State(AppState { pool, icondb, .. }): State<AppState>,
+    State(AppState { pool, icondb, reactions_count, .. }): State<AppState>,
     jar: SignedCookieJar,
     Path((livestream_id,)): Path<(i64,)>,
     axum::Json(req): axum::Json<PostReactionRequest>,
@@ -1403,6 +1457,15 @@ async fn post_reaction_handler(
             .execute(&mut *tx)
             .await?;
     let reaction_id = result.last_insert_id() as i64;
+
+    let livestream_user_name = sqlx::query_scalar("SELECT users.name FROM livestreams INNER JOIN users ON livestreams.user_id = users.id WHERE livestreams.id = ?")
+        .bind(livestream_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+    let mut reactions_count = reactions_count.write().await;
+    let count = reactions_count.entry(livestream_user_name).or_insert(0);
+    *count += 1;
 
     let reaction = fill_reaction_response(
         &mut tx,
@@ -1995,7 +2058,7 @@ impl From<MysqlDecimal> for i64 {
 }
 
 async fn get_user_statistics_handler(
-    State(AppState { pool, .. }): State<AppState>,
+    State(AppState { pool, reactions_count, tips_count, .. }): State<AppState>,
     jar: SignedCookieJar,
     Path((username,)): Path<(String,)>,
 ) -> Result<axum::Json<UserStatistics>, Error> {
@@ -2016,54 +2079,13 @@ async fn get_user_statistics_handler(
         .fetch_all(&mut *tx)
         .await?;
 
-    #[derive(Debug, sqlx::FromRow)]
-    struct ReactionsCount {
-        name: String,
-        reactions: MysqlDecimal,
-    }
-    #[derive(Debug, sqlx::FromRow)]
-    struct TipsCount {
-        name: String,
-        tips: MysqlDecimal
-    }
-
-    let query = r#"
-    SELECT u.name, COUNT(*) as reactions FROM users u
-    INNER JOIN livestreams l ON l.user_id = u.id
-    INNER JOIN reactions r ON r.livestream_id = l.id
-    GROUP BY u.name
-    "#;
-    let reactions_counts: Vec<ReactionsCount> = sqlx::query_as(query).fetch_all(&mut *tx).await?;
-    let reactions_count_map = reactions_counts
-        .into_iter()
-        .map(|entry| (entry.name, entry.reactions))
-        .collect::<HashMap<_, _>>();
-
-    let query =r#"
-    SELECT u.name, IFNULL(SUM(l2.tip), 0) as tips FROM users u
-    INNER JOIN livestreams l ON l.user_id = u.id
-    INNER JOIN livecomments l2 ON l2.livestream_id = l.id
-    GROUP BY u.name
-    "#;
-    let tips_counts: Vec<TipsCount> = sqlx::query_as(query).fetch_all(&mut *tx).await?;
-    let tips_count_map = tips_counts
-        .into_iter()
-        .map(|entry| (entry.name, entry.tips))
-        .collect::<HashMap<_, _>>();
-
+    let reactions_count = reactions_count.read().await;
+    let tips_count = tips_count.read().await;
     let mut ranking = users
         .into_iter()
         .map(|user| {
-            let reactions = if let Some(MysqlDecimal(reactions)) = reactions_count_map.get(&user.name) {
-                reactions.clone()
-            } else {
-                0
-            };
-            let tips = if let Some(MysqlDecimal(tips)) = tips_count_map.get(&user.name) {
-                tips.clone()
-            } else {
-                0
-            };
+            let reactions = reactions_count.get(&user.name).cloned().unwrap_or(0);
+            let tips = tips_count.get(&user.name).cloned().unwrap_or(0);
             let score = reactions + tips;
             UserRankingEntry {
                 username: user.name,
