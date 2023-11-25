@@ -487,6 +487,7 @@ fabric.properties
 env.sh
 .mysql_history
 .gitconfig
+.viminfo
 
 /webapp/go
 /webapp/node
