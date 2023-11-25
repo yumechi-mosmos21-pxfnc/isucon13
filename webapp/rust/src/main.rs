@@ -833,38 +833,19 @@ async fn fill_livestreams_response(
         .map(|livestream_model| livestream_model.id)
         .collect::<HashSet<i64>>();
     println!("livestream_model_ids: {:?}", livestream_model_ids);
+
     let mut query_builder = sqlx::query_builder::QueryBuilder::new(
-        "SELECT * FROM livestream_tags WHERE livestream_id IN (",
+        "SELECT livestream_tags.livestream_id, tags.id, tags.name FROM tags INNER JOIN livestream_tags on tags.id = livestream_tags.tag_id WHERE livestream_tags.livestream_id IN (",
     );
     let mut separated = query_builder.separated(", ");
-    livestream_model_ids.iter().for_each(|livestream_model_id| {
-        separated.push_bind(livestream_model_id);
+    livestream_model_ids.iter().for_each(|livestream_id| {
+        separated.push_bind(livestream_id);
     });
-    separated.push_unseparated(") ORDER BY livestream_id DESC");
-    let livestream_tag_models: Vec<LivestreamTagModel> = query_builder.build_query_as()
-            .fetch_all(&mut *tx)
-            .await?;
-    println!("livestream_tag_models: {:?}", livestream_tag_models);
-
-    let livestream_tag_ids = livestream_tag_models
-        .iter()
-        .map(|livestream_tag_model| livestream_tag_model.tag_id)
-        .collect::<HashSet<i64>>();
-    println!("livestream_tag_ids: {:?}", livestream_tag_ids);
-    let livestream_tag_models: Vec<TagModelWithLivestreamId> = if livestream_tag_ids.len() > 0 {
-        let mut query_builder = sqlx::query_builder::QueryBuilder::new(
-            "SELECT tags.id, livestream_tags.livestream_id, tags.name FROM tags INNER JOIN livestream_tags on tags.id = livestream_tags.tag_id WHERE tags.id IN ("
-        );
-        let mut separated = query_builder.separated(", ");
-        livestream_tag_ids.iter().for_each(|tag_id| {
-            separated.push_bind(tag_id);
-        });
-        separated.push_unseparated(")");
-
-        query_builder.build_query_as().fetch_all(&mut *tx).await?
-    } else {
-        Vec::new()
-    };
+    separated.push_unseparated(")");
+    let livestream_tag_models: Vec<TagModelWithLivestreamId> = query_builder
+        .build_query_as()
+        .fetch_all(&mut *tx)
+        .await?;
 
     let mut tags_map: HashMap::<i64, Vec<Tag>> = HashMap::new();
     for id in livestream_model_ids {
@@ -877,7 +858,7 @@ async fn fill_livestreams_response(
         };
         tags_map.get_mut(&livestream_tag_model.livestream_id).expect("tags_map error").push(tag);
     }
-    println!("tags_map: {:?}", tags_map);
+
 
     // ========================================
 
