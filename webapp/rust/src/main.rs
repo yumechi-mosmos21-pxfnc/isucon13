@@ -551,13 +551,8 @@ async fn search_livestreams_handler(
         }
         sqlx::query_as(&query).fetch_all(&mut *tx).await?
     } else {
-        let query_str = vec![
-            "SELECT livestreams.* FROM livestreams",
-            "INNER JOIN livestream_tags ON livestreams.id = livestream_tags.livestream_id",
-            "INNER JOIN tags ON livestream_tags.tag_id = tags.id",
-            "WHERE tags.name = ? ORDER BY livestreams.id DESC",
-        ].join(" ").as_str();
-        
+        let query_str = "SELECT livestreams.* FROM livestreams INNER JOIN livestream_tags ON livestreams.id = livestream_tags.livestream_id INNER JOIN tags ON livestream_tags.tag_id = tags.id WHERE tags.name = ? ORDER BY livestreams.id DESC";
+
         sqlx::query_as(query_str)
             .bind(key_tag_name)
             .fetch_all(&mut *tx)
