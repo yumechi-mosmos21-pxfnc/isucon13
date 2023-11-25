@@ -1978,12 +1978,12 @@ async fn get_user_statistics_handler(
     #[derive(Debug, sqlx::FromRow)]
     struct ReactionsCount {
         name: String,
-        reactions: i64,
+        reactions: MysqlDecimal,
     }
     #[derive(Debug, sqlx::FromRow)]
     struct TipsCount {
         name: String,
-        tips: i64,
+        tips: MysqlDecimal
     }
 
     let query = r#"
@@ -2013,8 +2013,16 @@ async fn get_user_statistics_handler(
     let mut ranking = users
         .into_iter()
         .map(|user| {
-            let reactions = reactions_count_map.get(&user.name).copied().unwrap_or(0);
-            let tips = tips_count_map.get(&user.name).copied().unwrap_or(0);
+            let reactions = if let Some(MysqlDecimal(reactions)) = reactions_count_map.get(&user.name).copied() {
+                reactions
+            } else {
+                0
+            };
+            let tips = if let Some(MysqlDecimal(tips)) = tips_count_map.get(&user.name).copied() {
+                tips
+            } else {
+                0
+            };
             let score = reactions + tips;
             UserRankingEntry {
                 username: user.name,
