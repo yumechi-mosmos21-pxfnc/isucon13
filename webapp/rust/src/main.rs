@@ -859,7 +859,7 @@ async fn fill_livestreams_response(
     let livestream_tag_models: Vec<TagModelWithLivestreamId> = query_builder.build_query_as().fetch_all(&mut *tx).await?;
 
     let mut tags_map: HashMap::<i64, Vec<Tag>> = HashMap::new();
-    for id in livestream_tag_ids {
+    for id in livestream_model_ids {
         tags_map.insert(id, Vec::new());
     }
     for livestream_tag_model in livestream_tag_models {
@@ -867,7 +867,7 @@ async fn fill_livestreams_response(
             id: livestream_tag_model.id,
             name: livestream_tag_model.name,
         };
-        tags_map.get_mut(&livestream_tag_model.livestream_id).unwrap().push(tag);
+        tags_map.get_mut(&livestream_tag_model.livestream_id).expect("tags_map error").push(tag);
     }
 
     // ========================================
