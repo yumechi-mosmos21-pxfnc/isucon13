@@ -849,7 +849,7 @@ async fn fill_livestreams_response(
         .map(|livestream_tag_model| livestream_tag_model.tag_id)
         .collect::<HashSet<i64>>();
     let mut query_builder = sqlx::query_builder::QueryBuilder::new(
-        "SELECT tags.id, livestream_tags.livestream_id, tags.name FROM tags INNER JOIN livestream_tags on tags.id = livestream_tags.tag_id WHERE id IN ("
+        "SELECT tags.id, livestream_tags.livestream_id, tags.name FROM tags INNER JOIN livestream_tags on tags.id = livestream_tags.tag_id WHERE tags.id IN ("
     );
     let mut separated = query_builder.separated(", ");
     livestream_tag_ids.iter().for_each(|tag_id| {
