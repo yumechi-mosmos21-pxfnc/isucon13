@@ -2013,13 +2013,13 @@ async fn get_user_statistics_handler(
     let mut ranking = users
         .into_iter()
         .map(|user| {
-            let reactions = if let Some(MysqlDecimal(reactions)) = reactions_count_map.get(&user.name).copied() {
-                reactions
+            let reactions = if let Some(MysqlDecimal(reactions)) = reactions_count_map.get(&user.name) {
+                reactions.clone()
             } else {
                 0
             };
-            let tips = if let Some(MysqlDecimal(tips)) = tips_count_map.get(&user.name).copied() {
-                tips
+            let tips = if let Some(MysqlDecimal(tips)) = tips_count_map.get(&user.name) {
+                tips.clone()
             } else {
                 0
             };
