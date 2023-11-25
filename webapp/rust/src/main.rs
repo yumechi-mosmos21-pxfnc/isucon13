@@ -7,6 +7,7 @@ use sqlx::mysql::{MySqlConnection, MySqlPool};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use tokio::io::AsyncReadExt;
 use tokio::sync::RwLock;
 
 use uuid::Uuid;
@@ -1870,15 +1871,21 @@ async fn fill_users_response(
     });
     separated.push_unseparated(")");
     // let images: Vec<IconModel> = query_builder.build_query_as().fetch_all(&mut *tx).await?;
+
+    let fallback_img = {
+        let mut file = tokio::fs::File::open(FALLBACK_IMAGE).await.unwrap();
+        let mut buff = vec![];
+        let _ = file.read_to_end(&mut buff);
+        buff
+    };
+
     let images: Vec<IconModel> = {
         let icondb = icondb.read().await;
         user_ids
             .iter()
-            .filter_map(|user_id| {
-                icondb.get(user_id).cloned().map(|image| IconModel {
-                    user_id: *user_id,
-                    image,
-                })
+            .map(|user_id| IconModel {
+                user_id: *user_id,
+                image: icondb.get(user_id).cloned().unwrap_or(fallback_img.clone()),
             })
             .collect()
     };
@@ -2024,7 +2031,7 @@ async fn get_user_statistics_handler(
     #[derive(Debug, sqlx::FromRow)]
     struct TipsCount {
         name: String,
-        tips: MysqlDecimal
+        tips: MysqlDecimal,
     }
 
     let query = r#"
@@ -2039,7 +2046,7 @@ async fn get_user_statistics_handler(
         .map(|entry| (entry.name, entry.reactions))
         .collect::<HashMap<_, _>>();
 
-    let query =r#"
+    let query = r#"
     SELECT u.name, IFNULL(SUM(l2.tip), 0) as tips FROM users u
     INNER JOIN livestreams l ON l.user_id = u.id
     INNER JOIN livecomments l2 ON l2.livestream_id = l.id
@@ -2054,11 +2061,12 @@ async fn get_user_statistics_handler(
     let mut ranking = users
         .into_iter()
         .map(|user| {
-            let reactions = if let Some(MysqlDecimal(reactions)) = reactions_count_map.get(&user.name) {
-                reactions.clone()
-            } else {
-                0
-            };
+            let reactions =
+                if let Some(MysqlDecimal(reactions)) = reactions_count_map.get(&user.name) {
+                    reactions.clone()
+                } else {
+                    0
+                };
             let tips = if let Some(MysqlDecimal(tips)) = tips_count_map.get(&user.name) {
                 tips.clone()
             } else {
