@@ -831,7 +831,7 @@ async fn fill_livestreams_response(
         .iter()
         .map(|livestream_model| livestream_model.id)
         .collect::<HashSet<i64>>();
-
+    println!("livestream_model_ids: {:?}", livestream_model_ids);
     let mut query_builder = sqlx::query_builder::QueryBuilder::new(
         "SELECT * FROM livestream_tags WHERE livestream_id IN (",
     );
@@ -862,6 +862,7 @@ async fn fill_livestreams_response(
     for id in livestream_model_ids {
         tags_map.insert(id, Vec::new());
     }
+    println!("tags_map: {:?}", tags_map);
     for livestream_tag_model in livestream_tag_models {
         let tag = Tag {
             id: livestream_tag_model.id,
