@@ -1872,12 +1872,9 @@ async fn fill_users_response(
     separated.push_unseparated(")");
     // let images: Vec<IconModel> = query_builder.build_query_as().fetch_all(&mut *tx).await?;
 
-    let fallback_img = {
-        let mut file = tokio::fs::File::open(FALLBACK_IMAGE).await.unwrap();
-        let mut buff = vec![];
-        let _ = file.read_to_end(&mut buff);
-        buff
-    };
+    let fallback_img = tokio::fs::read(FALLBACK_IMAGE)
+        .await
+        .expect("cannot read fallback image");
 
     let images: Vec<IconModel> = {
         let icondb = icondb.read().await;
