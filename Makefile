@@ -2,7 +2,7 @@ MYSQL_CONFIG_SRC := ./server_setting/mysql/my.cnf
 MYSQL_CONFIG_DEST := /etc/mysql/my.cnf
 MYSQL_SERVICE_NAME := mysql 
 
-NGINX_CONFIG_SRC := ./server_setting/config/nginx.conf
+NGINX_CONFIG_SRC := ./server_setting/nginx/nginx.conf
 NGINX_CONFIG_DEST := /etc/nginx/nginx.conf
 NGINX_SERVICE_NAME := nginx
 
