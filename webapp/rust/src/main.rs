@@ -426,7 +426,7 @@ struct LivestreamModel {
     end_at: i64,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize)]
 struct Livestream {
     id: i64,
     owner: User,
@@ -1024,13 +1024,7 @@ async fn get_livecomments_handler(
         .bind(livestream_id)
         .fetch_all(&mut *tx)
         .await?;
-
-    let mut livecomments = Vec::with_capacity(livecomment_models.len());
-    for livecomment_model in livecomment_models {
-        let livecomment =
-            fill_livecomment_response(&mut tx, icondb.clone(), livecomment_model).await?;
-        livecomments.push(livecomment);
-    }
+    let livecomments = fill_livecomments_response(&mut tx, icondb.clone(), livecomment_models).await?;
 
     tx.commit().await?;
 
@@ -1335,6 +1329,71 @@ async fn fill_livecomment_response(
         tip: livecomment_model.tip,
         created_at: livecomment_model.created_at,
     })
+}
+
+async fn fill_livecomments_response(
+    tx: &mut MySqlConnection,
+    icondb: IconDB,
+    livecomment_models: Vec<LivecommentModel>,
+) -> sqlx::Result<Vec<Livecomment>> {
+    let comment_owner_ids = livecomment_models
+        .iter()
+        .map(|livecomment_model| livecomment_model.user_id)
+        .collect::<HashSet<i64>>();
+    let mut query_builder =
+        sqlx::query_builder::QueryBuilder::new("SELECT * FROM users WHERE id IN (");
+    let mut separated = query_builder.separated(", ");
+    comment_owner_ids.iter().for_each(|user_id| {
+        separated.push_bind(user_id);
+    });
+    separated.push_unseparated(")");
+    let comment_owner_models: Vec<UserModel> = query_builder.build_query_as().fetch_all(&mut *tx).await?;
+    let comment_owner = fill_users_response(&mut *tx, icondb.clone(), comment_owner_models).await?;
+
+    let livestream_ids = livecomment_models
+        .iter()
+        .map(|livecomment_model| livecomment_model.livestream_id)
+        .collect::<HashSet<i64>>();
+    let mut query_builder = sqlx::query_builder::QueryBuilder::new("SELECT * FROM livestreams WHERE id IN (");
+    let mut separated = query_builder.separated(", ");
+    livestream_ids.iter().for_each(|livestream_id| {
+        separated.push_bind(livestream_id);
+    });
+    separated.push_unseparated(")");
+    let livestream_models: Vec<LivestreamModel> = query_builder.build_query_as().fetch_all(&mut *tx).await?;
+    let livestreams = fill_livestreams_response(&mut *tx, icondb.clone(), livestream_models).await?;
+
+    let comment_owners_map = comment_owner
+        .into_iter()
+        .map(|owner| (owner.id, owner))
+        .collect::<HashMap<_, _>>();
+    let livestreams_map = livestreams
+        .into_iter()
+        .map(|livestream| (livestream.id, livestream))
+        .collect::<HashMap<_, _>>();
+    let livecomments = livecomment_models
+        .into_iter()
+        .map(|livecomment_model| {
+            let comment_owner = comment_owners_map
+                .get(&livecomment_model.user_id)
+                .expect("comment_owner not found")
+                .clone();
+            let livestream = livestreams_map
+                .get(&livecomment_model.livestream_id)
+                .expect("livestream not found")
+                .clone();
+            Livecomment {
+                id: livecomment_model.id,
+                user: comment_owner,
+                livestream,
+                comment: livecomment_model.comment,
+                tip: livecomment_model.tip,
+                created_at: livecomment_model.created_at,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    Ok(livecomments)
 }
 
 async fn fill_livecomment_report_response(
