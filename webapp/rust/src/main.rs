@@ -798,7 +798,6 @@ async fn fill_livestreams_response(
         .iter()
         .map(|livestream_model| livestream_model.user_id)
         .collect::<HashSet<i64>>();
-    println!("{:?}", user_ids);
     let mut query_builder = sqlx::query_builder::QueryBuilder::new(
         "SELECT * FROM users WHERE id IN (",
     );
@@ -811,13 +810,11 @@ async fn fill_livestreams_response(
         .build_query_as()
         .fetch_all(&mut *tx)
         .await?;
-    println!("owner_models.len(): {}", owner_models.len());
     let owner_models_map = fill_users_response(tx, owner_models)
         .await?
         .into_iter()
         .map(|owner| (owner.id, owner))
         .collect::<HashMap<_, _>>();
-    println!("owner_models_map.len(): {}", owner_models_map.len());
 
     // ========================================
 
@@ -825,14 +822,16 @@ async fn fill_livestreams_response(
         .iter()
         .map(|livestream_model| livestream_model.id)
         .collect::<HashSet<i64>>();
-    let livestream_model_ids_str = livestream_model_ids
-        .iter()
-        .map(|id| id.to_string())
-        .collect::<Vec<_>>()
-        .join(", ");
-    let livestream_tag_models: Vec<LivestreamTagModel> =
-        sqlx::query_as("SELECT * FROM livestream_tags WHERE livestream_id IN (?) ORDER BY livestream_id DESC")
-            .bind(livestream_model_ids_str)
+
+    let mut query_builder = sqlx::query_builder::QueryBuilder::new(
+        "SELECT * FROM livestream_tags WHERE livestream_id IN (",
+    );
+    let mut separated = query_builder.separated(", ");
+    livestream_model_ids.iter().for_each(|livestream_model_id| {
+        separated.push_bind(livestream_model_id);
+    });
+    separated.push_unseparated(") ORDER BY livestream_id DESC");
+    let livestream_tag_models: Vec<LivestreamTagModel> = query_builder.build_query_as()
             .fetch_all(&mut *tx)
             .await?;
 
@@ -840,16 +839,13 @@ async fn fill_livestreams_response(
         .iter()
         .map(|livestream_tag_model| livestream_tag_model.tag_id)
         .collect::<HashSet<i64>>();
-    let livestream_tag_ids_str = livestream_tag_ids
-        .iter()
-        .map(|id| id.to_string())
-        .collect::<Vec<_>>()
-        .join(", ");
-    let livestream_tag_models: Vec<TagModel> =
-        sqlx::query_as("SELECT * FROM tags WHERE id IN (?)")
-            .bind(livestream_tag_ids_str)
-            .fetch_all(&mut *tx)
-            .await?;
+    let mut query_builder = sqlx::query_builder::QueryBuilder::new("SELECT * FROM tags WHERE id IN (");
+    let mut separated = query_builder.separated(", ");
+    livestream_tag_ids.iter().for_each(|tag_id| {
+        separated.push_bind(tag_id);
+    });
+    separated.push_unseparated(")");
+    let livestream_tag_models: Vec<TagModel> = query_builder.build_query_as().fetch_all(&mut *tx).await?;
     let tags = livestream_tag_models
         .into_iter()
         .map(|tag_model| Tag {
@@ -1811,14 +1807,16 @@ struct IconModel {
 
 async fn fill_users_response(tx: &mut MySqlConnection, user_models: Vec<UserModel>) -> sqlx::Result<Vec<User>> {
     let user_ids = user_models.iter().map(|user_model| user_model.id).collect::<HashSet<_>>();
-    let user_ids_str = user_ids
-        .iter()
-        .map(|user_id| user_id.to_string())
-        .collect::<Vec<_>>()
-        .join(", ");
 
-    let theme_models: Vec<ThemeModel> = sqlx::query_as("SELECT * FROM themes WHERE user_id IN (?)")
-        .bind(&user_ids_str)
+    let mut query_builder = sqlx::query_builder::QueryBuilder::new(
+        "SELECT * FROM themes WHERE user_id IN (",
+    );
+    let mut separated = query_builder.separated(", ");
+    user_ids.iter().for_each(|user_id| {
+       separated.push_bind(user_id);
+    });
+    separated.push_unseparated(")");
+    let theme_models: Vec<ThemeModel> = query_builder.build_query_as()
         .fetch_all(&mut *tx)
         .await?;
     let theme_models_map = theme_models
@@ -1826,8 +1824,15 @@ async fn fill_users_response(tx: &mut MySqlConnection, user_models: Vec<UserMode
         .map(|theme_model| (theme_model.user_id, theme_model))
         .collect::<HashMap<_, _>>();
 
-    let images: Vec<IconModel> = sqlx::query_as("SELECT user_id, image FROM icons WHERE user_id IN (?)")
-        .bind(&user_ids_str)
+    let mut query_builder = sqlx::query_builder::QueryBuilder::new(
+        "SELECT user_id, image FROM icons WHERE user_id IN (",
+    );
+    let mut separated = query_builder.separated(", ");
+    user_ids.iter().for_each(|user_id| {
+       separated.push_bind(user_id);
+    });
+    separated.push_unseparated(")");
+    let images: Vec<IconModel> = query_builder.build_query_as()
         .fetch_all(&mut *tx)
         .await?;
     let images_map = images
