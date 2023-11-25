@@ -458,3 +458,38 @@ fabric.properties
 
 # Android studio 3.1+ serialized cache file
 .idea/caches/build_file_checksums.ser
+
+
+# isucon13サーバーにあるいらないファイルたち
+/.ansible
+/.bundle
+/.cache
+/.cargo
+/.cpanm
+/.local
+/.npm
+/.perl-cpm
+/.rustup
+/.ssh
+/.vscode-server
+/go
+/local
+/tmp
+.bash_logout
+.lesshst
+.local.env
+.profile
+.tig_history
+.wget-hsts
+.x
+env.sh
+.bashrc
+
+/webapp/go
+/webapp/img
+/webapp/node
+/webapp/perl
+/webapp/php
+/webapp/public
+/webapp/python
+/webapp/ruby
