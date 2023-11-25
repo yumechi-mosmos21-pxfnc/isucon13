@@ -10,6 +10,10 @@ REDIS_CONFIG_SRC := ./server_setting/redis/redis.conf
 REDIS_CONFIG_DEST := /etc/redis/redis.conf
 REDIS_SERVICE_NAME := redis-server
 
+POWERDNS_CONFIG_SRC := ./server_setting/powerdns/pdns.conf
+POWERDNS_CONFIG_DEST := /etc/powerdns/pdns.conf
+POWERDNS_SERVICE_NAME := pdns.service
+
 WEBAPP_PROJECT_DIR := /home/isucon/webapp/rust # webappのディレクトリ名
 WEBAPP_SERVICE_NAME := isupipe-rust.service # systemctlで使うサービス名
 
@@ -60,3 +64,13 @@ redis:
 	sleep 3
 	sudo systemctl --no-pager status $(REDIS_SERVICE_NAME)
 
+
+.PHONY: pdns
+pdns:
+	sudo diff --unified $(POWERDNS_CONFIG_DEST) $(POWERDNS_CONFIG_SRC) || true
+	sudo mv $(POWERDNS_CONFIG_DEST) $(POWERDNS_CONFIG_DEST).$(BACKUP_TIMESTAMP)
+	sudo cp $(POWERDNS_CONFIG_SRC) $(POWERDNS_CONFIG_DEST)
+	sudo systemctl restart $(POWERDNS_SERVICE_NAME)
+# ちょっと待つ
+	sleep 3
+	sudo systemctl --no-pager status $(POWERDNS_SERVICE_NAME)
