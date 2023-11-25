@@ -799,12 +799,7 @@ async fn get_livecomment_reports_handler(
             .fetch_all(&mut *tx)
             .await?;
 
-    let mut reports = Vec::with_capacity(report_models.len());
-    for report_model in report_models {
-        let report =
-            fill_livecomment_report_response(&mut tx, icondb.clone(), report_model).await?;
-        reports.push(report);
-    }
+    let reports = fill_livecomment_reports_response(&mut tx, icondb.clone(), report_models).await?;
 
     tx.commit().await?;
 
@@ -954,7 +949,7 @@ struct LivecommentModel {
     created_at: i64,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize)]
 struct Livecomment {
     id: i64,
     user: User,
@@ -1421,6 +1416,68 @@ async fn fill_livecomment_report_response(
         livecomment,
         created_at: report_model.created_at,
     })
+}
+
+async fn fill_livecomment_reports_response(
+    tx: &mut MySqlConnection,
+    icondb: IconDB,
+    report_models: Vec<LivecommentReportModel>,
+) -> sqlx::Result<Vec<LivecommentReport>> {
+    let reporter_ids = report_models
+        .iter()
+        .map(|report_model| report_model.user_id)
+        .collect::<HashSet<i64>>();
+    let mut query_builder = sqlx::query_builder::QueryBuilder::new("SELECT * FROM users WHERE id IN (");
+    let mut separated = query_builder.separated(", ");
+    reporter_ids.iter().for_each(|user_id| {
+        separated.push_bind(user_id);
+    });
+    separated.push_unseparated(")");
+    let reporter_models: Vec<UserModel> = query_builder.build_query_as().fetch_all(&mut *tx).await?;
+    let reporter = fill_users_response(&mut *tx, icondb.clone(), reporter_models).await?;
+
+    let livecomment_ids = report_models
+        .iter()
+        .map(|report_model| report_model.livecomment_id)
+        .collect::<HashSet<i64>>();
+    let mut query_builder = sqlx::query_builder::QueryBuilder::new("SELECT * FROM livecomments WHERE id IN (");
+    let mut separated = query_builder.separated(", ");
+    livecomment_ids.iter().for_each(|livecomment_id| {
+        separated.push_bind(livecomment_id);
+    });
+    separated.push_unseparated(")");
+    let livecomment_models: Vec<LivecommentModel> = query_builder.build_query_as().fetch_all(&mut *tx).await?;
+    let livecomments = fill_livecomments_response(&mut *tx, icondb.clone(), livecomment_models).await?;
+
+    let reporter_map = reporter
+        .into_iter()
+        .map(|reporter| (reporter.id, reporter))
+        .collect::<HashMap<_, _>>();
+    let livecomments_map = livecomments
+        .into_iter()
+        .map(|livecomment| (livecomment.id, livecomment))
+        .collect::<HashMap<_, _>>();
+    let livecomment_reports = report_models
+        .into_iter()
+        .map(|report_model| {
+            let reporter = reporter_map
+                .get(&report_model.user_id)
+                .expect("reporter not found")
+                .clone();
+            let livecomment = livecomments_map
+                .get(&report_model.livecomment_id)
+                .expect("livecomment not found")
+                .clone();
+            LivecommentReport {
+                id: report_model.id,
+                reporter,
+                livecomment,
+                created_at: report_model.created_at,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    Ok(livecomment_reports)
 }
 
 #[derive(Debug, sqlx::FromRow)]
