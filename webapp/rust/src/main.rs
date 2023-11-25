@@ -798,14 +798,17 @@ async fn fill_livestreams_response(
         .iter()
         .map(|livestream_model| livestream_model.user_id)
         .collect::<HashSet<i64>>();
-    let user_ids_str = user_ids
-        .iter()
-        .map(|id| id.to_string())
-        .collect::<Vec<_>>()
-        .join(", ");
-    println!("{:?}", user_ids_str);
-    let owner_models: Vec<UserModel> = sqlx::query_as("SELECT * FROM users WHERE id IN (?)")
-        .bind(user_ids_str)
+    println!("{:?}", user_ids);
+    let mut query_builder = sqlx::query_builder::QueryBuilder::new(
+        "SELECT * FROM users WHERE id IN (",
+    );
+    let mut separated = query_builder.separated(", ");
+    user_ids.iter().for_each(|user_id| {
+        separated = separated.bind(user_id);
+    });
+    separated.push_unseparated(")");
+    let owner_models: Vec<UserModel> = query_builder
+        .build_query_as()
         .fetch_all(&mut *tx)
         .await?;
     println!("owner_models.len(): {}", owner_models.len());
