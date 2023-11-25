@@ -285,6 +285,13 @@ struct TagModel {
     name: String,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+struct TagModelWithLivestreamId {
+    id: i64,
+    livestream_id: i64,
+    name: String,
+}
+
 #[derive(Debug, serde::Serialize)]
 struct TagsResponse {
     tags: Vec<Tag>,
@@ -798,6 +805,7 @@ async fn fill_livestreams_response(
         .iter()
         .map(|livestream_model| livestream_model.user_id)
         .collect::<HashSet<i64>>();
+    println!("user_ids: {:?}", user_ids);
     let mut query_builder = sqlx::query_builder::QueryBuilder::new(
         "SELECT * FROM users WHERE id IN (",
     );
@@ -815,6 +823,7 @@ async fn fill_livestreams_response(
         .into_iter()
         .map(|owner| (owner.id, owner))
         .collect::<HashMap<_, _>>();
+    println!("owner_models_map: {:?}", owner_models_map.len());
 
     // ========================================
 
@@ -839,20 +848,27 @@ async fn fill_livestreams_response(
         .iter()
         .map(|livestream_tag_model| livestream_tag_model.tag_id)
         .collect::<HashSet<i64>>();
-    let mut query_builder = sqlx::query_builder::QueryBuilder::new("SELECT * FROM tags WHERE id IN (");
+    let mut query_builder = sqlx::query_builder::QueryBuilder::new(
+        "SELECT tags.id, livestream_tags.livestream_tags, tags.name FROM tags INNER JOIN livestream_tags on tags.id = livestream_tags.tag_id WHERE id IN ("
+    );
     let mut separated = query_builder.separated(", ");
     livestream_tag_ids.iter().for_each(|tag_id| {
         separated.push_bind(tag_id);
     });
     separated.push_unseparated(")");
-    let livestream_tag_models: Vec<TagModel> = query_builder.build_query_as().fetch_all(&mut *tx).await?;
-    let tags = livestream_tag_models
-        .into_iter()
-        .map(|tag_model| Tag {
-            id: tag_model.id,
-            name: tag_model.name,
-        })
-        .collect::<Vec<_>>();
+    let livestream_tag_models: Vec<TagModelWithLivestreamId> = query_builder.build_query_as().fetch_all(&mut *tx).await?;
+
+    let mut tags_map: HashMap::<i64, Vec<Tag>> = HashMap::new();
+    for id in livestream_tag_ids {
+        tags_map.insert(id, Vec::new());
+    }
+    for livestream_tag_model in livestream_tag_models {
+        let tag = Tag {
+            id: livestream_tag_model.id,
+            name: livestream_tag_model.name,
+        };
+        tags_map.get_mut(&livestream_tag_model.livestream_id).unwrap().push(tag);
+    }
 
     // ========================================
 
@@ -867,7 +883,7 @@ async fn fill_livestreams_response(
                 id: livestream_model.id,
                 owner,
                 title: livestream_model.title,
-                tags: tags.clone(),
+                tags: tags_map.get(&livestream_model.id).expect("tags not found").clone(),
                 description: livestream_model.description,
                 playlist_url: livestream_model.playlist_url,
                 thumbnail_url: livestream_model.thumbnail_url,
