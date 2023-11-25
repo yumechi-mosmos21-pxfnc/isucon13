@@ -475,7 +475,9 @@ fabric.properties
 /go
 /local
 /tmp
-.bash_logout
+/.bash_history
+/.bash_logout
+/.bashrc
 .lesshst
 .local.env
 .profile
@@ -483,8 +485,8 @@ fabric.properties
 .wget-hsts
 .x
 env.sh
-/.bashrc
 .mysql_history
+.gitconfig
 
 /webapp/go
 /webapp/img
