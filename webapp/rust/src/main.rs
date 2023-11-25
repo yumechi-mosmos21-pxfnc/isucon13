@@ -1987,7 +1987,7 @@ async fn get_user_statistics_handler(
     }
 
     let query = r#"
-    SELECT u.name, COUNT(*) FROM users u
+    SELECT u.name, COUNT(*) as reactions FROM users u
     INNER JOIN livestreams l ON l.user_id = u.id
     INNER JOIN reactions r ON r.livestream_id = l.id
     GROUP BY u.name
@@ -1999,7 +1999,7 @@ async fn get_user_statistics_handler(
         .collect::<HashMap<_, _>>();
 
     let query =r#"
-    SELECT u.name, IFNULL(SUM(l2.tip), 0) FROM users u
+    SELECT u.name, IFNULL(SUM(l2.tip), 0) as tips FROM users u
     INNER JOIN livestreams l ON l.user_id = u.id
     INNER JOIN livecomments l2 ON l2.livestream_id = l.id
     GROUP BY u.name
