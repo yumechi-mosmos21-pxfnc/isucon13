@@ -22,7 +22,8 @@ CREATE TABLE `icons` (
 CREATE TABLE `themes` (
   `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `user_id` BIGINT NOT NULL,
-  `dark_mode` BOOLEAN NOT NULL
+  `dark_mode` BOOLEAN NOT NULL,
+  KEY `themes_user_idx` (`user_id`)
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
 
 -- ライブ配信
@@ -79,6 +80,7 @@ CREATE TABLE `livecomments` (
   `comment` VARCHAR(255) NOT NULL,
   `tip` BIGINT NOT NULL DEFAULT 0,
   `created_at` BIGINT NOT NULL,
+  KEY `livecomments_stream_idx` (`livestream_id`),
   KEY `livecomments_created_idx` (`created_at`)
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
 
@@ -88,7 +90,8 @@ CREATE TABLE `livecomment_reports` (
   `user_id` BIGINT NOT NULL,
   `livestream_id` BIGINT NOT NULL,
   `livecomment_id` BIGINT NOT NULL,
-  `created_at` BIGINT NOT NULL
+  `created_at` BIGINT NOT NULL,
+  KEY `livecomment_reports_idx` (`livestream_id`)
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
 
 -- 配信者からのNGワード登録
@@ -97,7 +100,9 @@ CREATE TABLE `ng_words` (
   `user_id` BIGINT NOT NULL,
   `livestream_id` BIGINT NOT NULL,
   `word` VARCHAR(255) NOT NULL,
-  `created_at` BIGINT NOT NULL
+  `created_at` BIGINT NOT NULL,
+  KEY `ng_words_stream_idx` (`livestream_id`),
+  KEY `ng_words_user_idx` (`user_id`)
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
 CREATE INDEX ng_words_word ON ng_words(`word`);
 
@@ -108,5 +113,7 @@ CREATE TABLE `reactions` (
   `livestream_id` BIGINT NOT NULL,
   -- :innocent:, :tada:, etc...
   `emoji_name` VARCHAR(255) NOT NULL,
-  `created_at` BIGINT NOT NULL
+  `created_at` BIGINT NOT NULL,
+  KEY `reactions_stream_idx` (`livestream_id`),
+  KEY `reactions_user_idx` (`user_id`)
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
