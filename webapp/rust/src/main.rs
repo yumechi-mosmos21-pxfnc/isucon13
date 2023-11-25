@@ -803,6 +803,7 @@ async fn fill_livestreams_response(
         .map(|id| id.to_string())
         .collect::<Vec<_>>()
         .join(", ");
+    println!("{:?}", user_ids_str);
     let owner_models: Vec<UserModel> = sqlx::query_as("SELECT * FROM users WHERE id IN (?)")
         .bind(user_ids_str)
         .fetch_all(&mut *tx)
@@ -859,7 +860,7 @@ async fn fill_livestreams_response(
         .map(|livestream_model| {
             let owner = owner_models_map
                 .get(&livestream_model.user_id)
-                .unwrap()
+                .expect("owner not found")
                 .clone();
             Livestream {
                 id: livestream_model.id,
