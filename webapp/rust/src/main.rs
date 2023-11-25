@@ -123,7 +123,12 @@ fn build_mysql_options() -> sqlx::mysql::MySqlConnectOptions {
 }
 
 async fn initialize_handler(
-    State(AppState { pool, reactions_count, tips_count, .. }): State<AppState>,
+    State(AppState {
+        pool,
+        reactions_count,
+        tips_count,
+        ..
+    }): State<AppState>,
 ) -> Result<axum::Json<InitializeResponse>, Error> {
     let output = tokio::process::Command::new("../sql/init.sh")
         .output()
@@ -146,7 +151,7 @@ async fn initialize_handler(
     #[derive(Debug, sqlx::FromRow)]
     struct TipsCount {
         name: String,
-        tips: MysqlDecimal
+        tips: MysqlDecimal,
     }
 
     let query = r#"
@@ -162,7 +167,7 @@ async fn initialize_handler(
         reactions_count.insert(c.name, reactions);
     }
 
-    let query =r#"
+    let query = r#"
     SELECT u.name, IFNULL(SUM(l2.tip), 0) as tips FROM users u
     INNER JOIN livestreams l ON l.user_id = u.id
     INNER JOIN livecomments l2 ON l2.livestream_id = l.id
@@ -1067,7 +1072,12 @@ async fn get_ngwords(
 }
 
 async fn post_livecomment_handler(
-    State(AppState { pool, icondb, tips_count, .. }): State<AppState>,
+    State(AppState {
+        pool,
+        icondb,
+        tips_count,
+        ..
+    }): State<AppState>,
     jar: SignedCookieJar,
     Path((livestream_id,)): Path<(i64,)>,
     axum::Json(req): axum::Json<PostLivecommentRequest>,
@@ -1225,7 +1235,9 @@ struct ModerateResponse {
 
 // NGワードを登録
 async fn moderate_handler(
-    State(AppState { pool, .. }): State<AppState>,
+    State(AppState {
+        pool, tips_count, ..
+    }): State<AppState>,
     jar: SignedCookieJar,
     Path((livestream_id,)): Path<(i64,)>,
     axum::Json(req): axum::Json<ModerateRequest>,
@@ -1248,6 +1260,7 @@ async fn moderate_handler(
             .bind(user_id)
             .fetch_all(&mut *tx)
             .await?;
+
     if owned_livestreams.is_empty() {
         return Err(Error::BadRequest(
             "A streamer can't moderate livestreams that other streamers own".into(),
@@ -1270,6 +1283,8 @@ async fn moderate_handler(
         .bind(livestream_id)
         .fetch_all(&mut *tx)
         .await?;
+
+    let mut tips_count = tips_count.write().await;
 
     // NGワードにヒットする過去の投稿も全削除する
     for ngword in ngwords {
@@ -1298,6 +1313,10 @@ async fn moderate_handler(
                 .bind(&ngword.word)
                 .execute(&mut *tx)
                 .await?;
+
+            tips_count
+                .entry(user_id.to_string())
+                .and_modify(|sum| *sum -= livecomment.tip);
         }
     }
 
@@ -1427,7 +1446,12 @@ async fn get_reactions_handler(
 }
 
 async fn post_reaction_handler(
-    State(AppState { pool, icondb, reactions_count, .. }): State<AppState>,
+    State(AppState {
+        pool,
+        icondb,
+        reactions_count,
+        ..
+    }): State<AppState>,
     jar: SignedCookieJar,
     Path((livestream_id,)): Path<(i64,)>,
     axum::Json(req): axum::Json<PostReactionRequest>,
@@ -2057,7 +2081,12 @@ impl From<MysqlDecimal> for i64 {
 }
 
 async fn get_user_statistics_handler(
-    State(AppState { pool, reactions_count, tips_count, .. }): State<AppState>,
+    State(AppState {
+        pool,
+        reactions_count,
+        tips_count,
+        ..
+    }): State<AppState>,
     jar: SignedCookieJar,
     Path((username,)): Path<(String,)>,
 ) -> Result<axum::Json<UserStatistics>, Error> {
