@@ -566,7 +566,6 @@ async fn search_livestreams_handler(
             .await?
     };
 
-    println!("livestream_models: {:?}", livestream_models);
     let livestreams = fill_livestreams_response(&mut tx, livestream_models).await?;
 
     tx.commit().await?;
@@ -871,7 +870,6 @@ async fn fill_livestreams_response(
     for id in livestream_model_ids {
         tags_map.insert(id, Vec::new());
     }
-    println!("tags_map: {:?}", tags_map);
     for livestream_tag_model in livestream_tag_models {
         let tag = Tag {
             id: livestream_tag_model.id,
@@ -879,6 +877,7 @@ async fn fill_livestreams_response(
         };
         tags_map.get_mut(&livestream_tag_model.livestream_id).expect("tags_map error").push(tag);
     }
+    println!("tags_map: {:?}", tags_map);
 
     // ========================================
 
