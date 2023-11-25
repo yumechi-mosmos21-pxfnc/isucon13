@@ -11,7 +11,7 @@ REDIS_CONFIG_DEST := /etc/redis/redis.conf
 REDIS_SERVICE_NAME := redis-server
 
 WEBAPP_PROJECT_DIR := /home/isucon/webapp/rust # webappのディレクトリ名
-WEBAPP_SERVICE_NAME := isuports # systemctlで使うサービス名
+WEBAPP_SERVICE_NAME := isupipe-rust.service # systemctlで使うサービス名
 
 BACKUP_TIMESTAMP = $(shell date --utc '+%Y%m%dT%H%M%S')
 
