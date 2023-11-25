@@ -7,6 +7,8 @@ use sqlx::mysql::{MySqlConnection, MySqlPool};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use tokio::sync::RwLock;
+
 use uuid::Uuid;
 
 const DEFAULT_SESSION_ID_KEY: &str = "SESSIONID";
@@ -74,6 +76,8 @@ struct AppState {
     pool: MySqlPool,
     key: axum_extra::extract::cookie::Key,
     powerdns_subdomain_address: Arc<String>,
+    // <ユーザid, 画像>
+    icondb: Arc<RwLock<HashMap<i64, Vec<u8>>>>,
 }
 
 impl axum::extract::FromRef<AppState> for axum_extra::extract::cookie::Key {
@@ -257,6 +261,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             pool,
             key: axum_extra::extract::cookie::Key::derive_from(&secret),
             powerdns_subdomain_address: Arc::new(powerdns_subdomain_address),
+            icondb: Arc::new(RwLock::new(HashMap::new())),
         })
         .layer(tower_http::trace::TraceLayer::new_for_http());
 
@@ -1513,8 +1518,8 @@ struct PostIconResponse {
 }
 
 async fn get_icon_handler(
-    State(AppState { pool, .. }): State<AppState>,
-    Path((username, )): Path<(String, )>,
+    State(AppState { pool, icondb, .. }): State<AppState>,
+    Path((username,)): Path<(String,)>,
 ) -> Result<axum::response::Response, Error> {
     use axum::response::IntoResponse as _;
 
@@ -1525,14 +1530,15 @@ async fn get_icon_handler(
         .fetch_one(&mut *tx)
         .await?;
 
-    let image: Option<Vec<u8>> = sqlx::query_scalar("SELECT image FROM icons WHERE user_id = ?")
-        .bind(user.id)
-        .fetch_optional(&mut *tx)
-        .await?;
+    // let image: Option<Vec<u8>> = sqlx::query_scalar("SELECT image FROM icons WHERE user_id = ?")
+    //     .bind(user.id)
+    //     .fetch_optional(&mut *tx)
+    //     .await?;
 
     let headers = [(axum::http::header::CONTENT_TYPE, "image/jpeg")];
-    if let Some(image) = image {
-        Ok((headers, image).into_response())
+
+    if let Some(image) = icondb.read().await.get(&user.id) {
+        Ok((headers, image.clone()).into_response())
     } else {
         let file = tokio::fs::File::open(FALLBACK_IMAGE).await.unwrap();
         let stream = tokio_util::io::ReaderStream::new(file);
@@ -1543,7 +1549,7 @@ async fn get_icon_handler(
 }
 
 async fn post_icon_handler(
-    State(AppState { pool, .. }): State<AppState>,
+    State(AppState { icondb, .. }): State<AppState>,
     jar: SignedCookieJar,
     axum::Json(req): axum::Json<PostIconRequest>,
 ) -> Result<(StatusCode, axum::Json<PostIconResponse>), Error> {
@@ -1556,25 +1562,26 @@ async fn post_icon_handler(
         .ok_or(Error::SessionError)?;
     let user_id: i64 = sess.get(DEFAULT_USER_ID_KEY).ok_or(Error::SessionError)?;
 
-    let mut tx = pool.begin().await?;
+    icondb.write().await.insert(user_id, req.image);
+    // let mut tx = pool.begin().await?;
 
-    sqlx::query("DELETE FROM icons WHERE user_id = ?")
-        .bind(user_id)
-        .execute(&mut *tx)
-        .await?;
+    // sqlx::query("DELETE FROM icons WHERE user_id = ?")
+    //     .bind(user_id)
+    //     .execute(&mut *tx)
+    //     .await?;
 
-    let rs = sqlx::query("INSERT INTO icons (user_id, image) VALUES (?, ?)")
-        .bind(user_id)
-        .bind(req.image)
-        .execute(&mut *tx)
-        .await?;
-    let icon_id = rs.last_insert_id() as i64;
+    // let rs = sqlx::query("INSERT INTO icons (user_id, image) VALUES (?, ?)")
+    //     .bind(user_id)
+    //     .bind(req.image)
+    //     .execute(&mut *tx)
+    //     .await?;
+    // let icon_id = rs.last_insert_id() as i64;
 
-    tx.commit().await?;
+    // tx.commit().await?;
 
     Ok((
         StatusCode::CREATED,
-        axum::Json(PostIconResponse { id: icon_id }),
+        axum::Json(PostIconResponse { id: user_id }),
     ))
 }
 
