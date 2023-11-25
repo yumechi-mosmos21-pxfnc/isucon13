@@ -566,6 +566,7 @@ async fn search_livestreams_handler(
             .await?
     };
 
+    println!("livestream_models: {:?}", livestream_models);
     let livestreams = fill_livestreams_response(&mut tx, livestream_models).await?;
 
     tx.commit().await?;
