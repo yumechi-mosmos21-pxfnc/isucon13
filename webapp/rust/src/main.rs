@@ -548,6 +548,13 @@ async fn search_livestreams_handler(
         }
         sqlx::query_as(&query).fetch_all(&mut *tx).await?
     } else {
+        sqlx::query_as(vec![
+            "SELECT livestreams.* FROM livestreams",
+            "INNER JOIN livestream_tags ON livestreams.id = livestream_tags.livestream_id",
+            "INNER JOIN tags ON livestream_tags.tag_id = tags.id",
+            "WHERE tags.name = ? ORDER BY livestreams.id DESC"
+        ].join(" ").as_str()).fetch_all(&mut *tx).await?
+        /*
         // タグによる取得
         let tag_id_list: Vec<i64> = sqlx::query_scalar("SELECT id FROM tags WHERE name = ?")
             .bind(key_tag_name)
@@ -574,6 +581,7 @@ async fn search_livestreams_handler(
             livestream_models.push(ls);
         }
         livestream_models
+        */
     };
 
     let mut livestreams = Vec::with_capacity(livestream_models.len());
