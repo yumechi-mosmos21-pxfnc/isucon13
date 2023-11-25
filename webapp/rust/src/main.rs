@@ -808,11 +808,13 @@ async fn fill_livestreams_response(
         .bind(user_ids_str)
         .fetch_all(&mut *tx)
         .await?;
+    println!("owner_models.len(): {}", owner_models.len());
     let owner_models_map = fill_users_response(tx, owner_models)
         .await?
         .into_iter()
         .map(|owner| (owner.id, owner))
         .collect::<HashMap<_, _>>();
+    println!("owner_models_map.len(): {}", owner_models_map.len());
 
     // ========================================
 
