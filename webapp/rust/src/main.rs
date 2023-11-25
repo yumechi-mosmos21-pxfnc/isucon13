@@ -1929,15 +1929,18 @@ async fn fill_users_response(
     });
     separated.push_unseparated(")");
     // let images: Vec<IconModel> = query_builder.build_query_as().fetch_all(&mut *tx).await?;
+
+    let fallback_img = tokio::fs::read(FALLBACK_IMAGE)
+        .await
+        .expect("cannot read fallback image");
+
     let images: Vec<IconModel> = {
         let icondb = icondb.read().await;
         user_ids
             .iter()
-            .filter_map(|user_id| {
-                icondb.get(user_id).cloned().map(|image| IconModel {
-                    user_id: *user_id,
-                    image,
-                })
+            .map(|user_id| IconModel {
+                user_id: *user_id,
+                image: icondb.get(user_id).cloned().unwrap_or(fallback_img.clone()),
             })
             .collect()
     };
