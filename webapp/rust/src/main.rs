@@ -804,7 +804,7 @@ async fn fill_livestreams_response(
     );
     let mut separated = query_builder.separated(", ");
     user_ids.iter().for_each(|user_id| {
-        separated = separated.bind(user_id);
+        separated.push_bind(user_id);
     });
     separated.push_unseparated(")");
     let owner_models: Vec<UserModel> = query_builder
