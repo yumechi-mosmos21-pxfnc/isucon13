@@ -123,7 +123,13 @@ fn build_mysql_options() -> sqlx::mysql::MySqlConnectOptions {
 }
 
 async fn initialize_handler(
-    State(AppState { pool, reactions_count, tips_count, .. }): State<AppState>,
+    State(AppState {
+        pool,
+        reactions_count,
+        tips_count,
+        icondb,
+        ..
+    }): State<AppState>,
 ) -> Result<axum::Json<InitializeResponse>, Error> {
     let output = tokio::process::Command::new("../sql/init.sh")
         .output()
@@ -136,6 +142,8 @@ async fn initialize_handler(
         )));
     }
 
+    icondb.write().await.clear();
+
     let mut tx = pool.begin().await?;
 
     #[derive(Debug, sqlx::FromRow)]
@@ -146,7 +154,7 @@ async fn initialize_handler(
     #[derive(Debug, sqlx::FromRow)]
     struct TipsCount {
         name: String,
-        tips: MysqlDecimal
+        tips: MysqlDecimal,
     }
 
     let query = r#"
@@ -163,7 +171,7 @@ async fn initialize_handler(
         reactions_count.insert(c.name, reactions);
     }
 
-    let query =r#"
+    let query = r#"
     SELECT u.name, IFNULL(SUM(l2.tip), 0) as tips FROM users u
     INNER JOIN livestreams l ON l.user_id = u.id
     INNER JOIN livecomments l2 ON l2.livestream_id = l.id
@@ -1069,7 +1077,12 @@ async fn get_ngwords(
 }
 
 async fn post_livecomment_handler(
-    State(AppState { pool, icondb, tips_count, .. }): State<AppState>,
+    State(AppState {
+        pool,
+        icondb,
+        tips_count,
+        ..
+    }): State<AppState>,
     jar: SignedCookieJar,
     Path((livestream_id,)): Path<(i64,)>,
     axum::Json(req): axum::Json<PostLivecommentRequest>,
@@ -1429,7 +1442,12 @@ async fn get_reactions_handler(
 }
 
 async fn post_reaction_handler(
-    State(AppState { pool, icondb, reactions_count, .. }): State<AppState>,
+    State(AppState {
+        pool,
+        icondb,
+        reactions_count,
+        ..
+    }): State<AppState>,
     jar: SignedCookieJar,
     Path((livestream_id,)): Path<(i64,)>,
     axum::Json(req): axum::Json<PostReactionRequest>,
@@ -2059,7 +2077,12 @@ impl From<MysqlDecimal> for i64 {
 }
 
 async fn get_user_statistics_handler(
-    State(AppState { pool, reactions_count, tips_count, .. }): State<AppState>,
+    State(AppState {
+        pool,
+        reactions_count,
+        tips_count,
+        ..
+    }): State<AppState>,
     jar: SignedCookieJar,
     Path((username,)): Path<(String,)>,
 ) -> Result<axum::Json<UserStatistics>, Error> {
