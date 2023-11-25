@@ -156,6 +156,7 @@ async fn initialize_handler(
     GROUP BY u.name
     "#;
     let mut reactions_count = reactions_count.write().await;
+    reactions_count.clear();
     let reactions_counts: Vec<ReactionsCount> = sqlx::query_as(query).fetch_all(&mut *tx).await?;
     for c in reactions_counts {
         let MysqlDecimal(reactions) = c.reactions;
@@ -169,6 +170,7 @@ async fn initialize_handler(
     GROUP BY u.name
     "#;
     let mut tips_count = tips_count.write().await;
+    tips_count.clear();
     let tips_counts: Vec<TipsCount> = sqlx::query_as(query).fetch_all(&mut *tx).await?;
     for c in tips_counts {
         let MysqlDecimal(tips) = c.tips;
