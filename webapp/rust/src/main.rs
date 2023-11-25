@@ -802,6 +802,7 @@ async fn fill_livestreams_response(
     tx: &mut MySqlConnection,
     livestream_models: Vec<LivestreamModel>,
 ) -> sqlx::Result<Vec<Livestream>> {
+    println!("livestream_models: {:?}", livestream_models);
     let user_ids = livestream_models
         .iter()
         .map(|livestream_model| livestream_model.user_id)
@@ -1788,7 +1789,7 @@ async fn verify_user_session(jar: &SignedCookieJar) -> Result<(), Error> {
         .ok_or(Error::Forbidden("".into()))?;
     let now = Utc::now();
     if now.timestamp() > session_expires {
-        return Err(Error::Unauthorized("session has expired".into()));
+        return Err(Error::Unauthorized("session lihas expired".into()));
     }
     Ok(())
 }
