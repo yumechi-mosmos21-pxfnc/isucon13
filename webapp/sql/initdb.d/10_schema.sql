@@ -113,6 +113,5 @@ CREATE TABLE `reactions` (
   -- :innocent:, :tada:, etc...
   `emoji_name` VARCHAR(255) NOT NULL,
   `created_at` BIGINT NOT NULL,
-  KEY `reactions_stream_idx` (`livestream_id`),
-  KEY `reactions_user_idx` (`user_id`)
+  KEY `reactions_stream_idx` (`livestream_id`)
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
